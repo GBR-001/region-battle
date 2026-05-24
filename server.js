@@ -342,6 +342,18 @@ app.post('/api/reset', (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/update-regions { regions }
+app.post('/api/update-regions', (req, res) => {
+  const { regions } = req.body;
+  if (!Array.isArray(regions) || regions.length < 2)
+    return res.status(400).json({ error: 'minimum 2 regions required' });
+  const cleaned = regions.map(r => r.trim()).filter(Boolean);
+  cleaned.forEach(r => { if (!state.regionScores[r]) state.regionScores[r] = 0; });
+  state.regions = cleaned;
+  broadcast();
+  res.json({ ok: true });
+});
+
 // POST /api/aliases  { aliases: { word: region } }
 app.post('/api/aliases', (req, res) => {
   const { aliases } = req.body;
