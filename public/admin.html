@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>Admin – Region Battle</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e0e16;--bg2:#16161f;--bg3:#1d1d2a;
+  --border:rgba(255,255,255,0.08);
+  --text:#eeeef5;--muted:#6b6b85;
+  --accent:#4f8ef7;--purple:#a78bfa;
+  --gold:#f5c542;--green:#34d399;--red:#f87171;--orange:#fb923c;
+  --r:12px;--rs:8px;
+}
+html{
+  font-family:'Segoe UI',system-ui,sans-serif;
+  background:var(--bg);color:var(--text);
+  min-height:100dvh;overflow-x:hidden;
+}
+body{
+  padding:12px;display:flex;flex-direction:column;gap:0;
+  max-width:430px;margin:0 auto;min-height:100dvh;
+}
+
+/* ── Header ── */
+.header{display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.header h1{font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px}
+.badge-admin{font-size:10px;background:rgba(167,139,250,.2);color:var(--purple);
+  padding:3px 9px;border-radius:20px;font-weight:700}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px}
+.tab{flex:1;padding:10px 4px;text-align:center;font-size:13px;font-weight:600;
+  color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;
+  transition:color .2s,border-color .2s;user-select:none}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* ── Tab panels ── */
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ── Cards ── */
+.card{background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--r);padding:14px;margin-bottom:12px}
+.card h2{font-size:11px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+
+/* ── Forms ── */
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+input[type=text],input[type=number]{
+  width:100%;background:var(--bg3);border:1px solid var(--border);
+  border-radius:var(--rs);color:var(--text);font-size:14px;
+  padding:10px 12px;outline:none;font-family:inherit;
+  transition:border-color .2s;-webkit-appearance:none;
+}
+input:focus{border-color:var(--accent)}
+.form-row{margin-bottom:11px}
+
+/* ── Buttons ── */
+button{cursor:pointer;font-size:14px;font-weight:600;border-radius:var(--rs);
+  border:none;padding:11px 16px;transition:opacity .15s,transform .1s;
+  font-family:inherit;-webkit-tap-highlight-color:transparent}
+button:active{transform:scale(.97)}
+.btn-start{background:var(--green);color:#0a1f14;width:100%;font-size:16px;padding:14px}
+.btn-pause{background:var(--gold);color:#1a1000;flex:1}
+.btn-stop {background:var(--red); color:#fff;flex:1}
+.btn-reset{background:var(--bg3);color:var(--text);border:1px solid var(--border)}
+.btn-sim  {background:var(--accent);color:#fff;flex:1}
+.btn-demo {background:var(--purple);color:#fff;padding:11px 14px}
+.btn-connect{background:var(--accent);color:#fff;
+  border:none;border-radius:var(--rs);padding:10px 14px;
+  font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;
+  font-family:inherit;-webkit-tap-highlight-color:transparent}
+.btn-del{background:transparent;border:1px solid var(--border);
+  color:var(--red);padding:8px 12px;font-size:16px;line-height:1;border-radius:var(--rs)}
+.btn-add{background:var(--bg3);border:1px solid var(--border);
+  color:var(--text);font-size:12px;padding:8px 12px;
+  border-radius:var(--rs);margin-top:6px;width:100%}
+.btn-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+
+/* ── Status display ── */
+.info-row{display:flex;justify-content:space-between;align-items:center;
+  font-size:13px;padding:7px 0;border-bottom:1px solid var(--border)}
+.info-row:last-child{border-bottom:none}
+.info-label{color:var(--muted)}
+.info-val{font-weight:600}
+
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;padding:4px 10px;border-radius:20px}
+.chip::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.c-active{background:rgba(52,211,153,.12);color:var(--green)}
+.c-paused{background:rgba(245,197,66,.12);color:var(--gold)}
+.c-idle  {background:rgba(107,107,133,.12);color:var(--muted)}
+.c-done  {background:rgba(248,113,113,.12);color:var(--red)}
+
+/* ── TikTok status box ── */
+#tt-status-box{
+  margin-top:10px;border-radius:var(--rs);padding:10px 12px;
+  font-size:13px;display:flex;align-items:center;gap:10px;
+  background:rgba(107,107,133,.1);border:1px solid var(--border);
+  transition:background .3s,border-color .3s
+}
+#tt-error{display:none;margin-top:8px;padding:9px 12px;
+  background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);
+  border-radius:var(--rs);font-size:12px;color:var(--red);line-height:1.6}
+
+/* ── Region rows ── */
+.ri{display:flex;gap:8px;align-items:center;margin-bottom:7px}
+.ri input{flex:1;font-size:14px}
+
+/* ── Mini leaderboard ── */
+.mlb-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.mlb-rank{font-size:12px;font-weight:700;min-width:18px;color:var(--muted)}
+.mlb-name{font-size:13px;font-weight:600;min-width:70px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mlb-wrap{flex:1;height:18px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.mlb-bar{height:100%;border-radius:4px;transition:width .4s ease}
+.mlb-pts{font-size:12px;min-width:50px;text-align:right;color:var(--muted)}
+
+/* ── Feed ── */
+.fi{font-size:12px;padding:5px 0;border-bottom:1px solid var(--border);
+  display:flex;gap:6px;align-items:center}
+.fi-u{font-weight:700;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fi-c{color:var(--gold);font-weight:700}
+.fi-r{color:var(--accent)}
+
+/* ── Note box ── */
+.note{background:rgba(79,142,247,.07);border:1px solid rgba(79,142,247,.18);
+  border-radius:var(--rs);padding:9px 11px;font-size:11px;
+  color:var(--muted);line-height:1.6;margin-top:8px}
+.note strong{color:var(--text)}
+
+/* ── Sim msg ── */
+#sim-msg{font-size:11px;color:var(--green);min-height:16px;margin-top:6px}
+
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px}
+
+/* ── Mobile tweaks ── */
+@media(max-width:400px){
+  .btn-pause,.btn-stop,.btn-sim{font-size:13px;padding:11px 10px}
+  #tt-status-box{flex-wrap:wrap}
+  .tab{font-size:12px;padding:10px 2px}
+  .header h1{font-size:15px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚙ Admin <span class="badge-admin">Panel</span></h1>
+  <a href="/" target="_blank"
+     style="font-size:12px;color:var(--accent);text-decoration:none;
+            background:rgba(79,142,247,.1);padding:6px 10px;border-radius:var(--rs)">
+    📺 Display ↗
+  </a>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('tiktok')">TikTok</div>
+  <div class="tab" onclick="switchTab('game')">თამაში</div>
+  <div class="tab" onclick="switchTab('regions')">რეგიონები</div>
+  <div class="tab" onclick="switchTab('sim')">სიმულაცია</div>
+</div>
+
+<!-- ══ TAB: TIKTOK ══ -->
+<div id="tab-tiktok" class="tab-panel active">
+
+  <div class="card">
+    <h2>TikTok ექაუნთი</h2>
+    <div class="form-row">
+      <label>@Username</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="tt-user" placeholder="lashaberelidze" style="flex:1;min-width:0"
+               onkeydown="if(event.key==='Enter')connectTikTok()"/>
+        <button id="btn-connect" class="btn-connect" onclick="connectTikTok()">
+          🔗 კავშირი
+        </button>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label>Euler Signing Key
+        <a href="https://eulerstream.com" target="_blank"
+           style="color:var(--accent);font-weight:700;margin-left:6px;font-size:11px">
+          → უფასო ↗
+        </a>
+      </label>
+      <input type="text" id="tt-signing" placeholder="euler_xxxxxxxxxxxxxxxx"
+             style="font-family:monospace;font-size:12px"/>
+      <div class="note" style="margin-top:6px">
+        <strong>eulerstream.com</strong> → Sign Up → API Keys → Create → Value დააკოპირე
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label>Session ID <span style="font-size:10px;color:var(--muted)">(სურვილისამებრ)</span></label>
+      <input type="text" id="tt-session" placeholder="F12 → Application → Cookies → sessionid"
+             style="font-family:monospace;font-size:11px"/>
+    </div>
+
+    <div id="tt-status-box">
+      <span id="tt-dot" style="width:10px;height:10px;border-radius:50%;
+            background:var(--muted);flex-shrink:0;transition:background .3s"></span>
+      <span id="tt-status-txt" style="flex:1;color:var(--muted);font-size:13px">
+        ველები შეავსე და "კავშირი" დააჭირე
+      </span>
+      <button id="btn-disconnect" onclick="disconnectTikTok()"
+              style="display:none;background:transparent;border:1px solid var(--border);
+                     color:var(--red);border-radius:6px;padding:4px 10px;
+                     font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">
+        გათიშვა
+      </button>
+    </div>
+    <div id="tt-error"></div>
+  </div>
+
+</div>
+
+<!-- ══ TAB: GAME ══ -->
+<div id="tab-game" class="tab-panel">
+
+  <div class="card">
+    <h2>სტატუსი</h2>
+    <div class="info-row">
+      <span class="info-label">სტატუსი</span>
+      <span id="status-chip" class="chip c-idle">idle</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">დარჩენილი</span>
+      <span id="time-left" class="info-val">—</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">MVP</span>
+      <span id="mvp-val" class="info-val" style="color:var(--gold)">—</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">მონაწილე</span>
+      <span id="player-count" class="info-val">0</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>ხანგრძლივობა</h2>
+    <div style="display:flex;gap:10px;align-items:center">
+      <input type="number" id="duration" value="120" min="10" max="7200"
+             oninput="document.getElementById('dur-p').textContent=fmt(+this.value||0)"
+             style="width:100px;flex:none;font-size:16px"/>
+      <span style="font-size:14px;color:var(--muted)">წამი</span>
+      <span style="font-size:15px;font-weight:600" id="dur-p">2:00</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>კონტროლი</h2>
+    <button class="btn-start" onclick="startGame()">▶ თამაშის დაწყება</button>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn-pause" id="btn-pause" onclick="pauseGame()">⏸ პაუზა</button>
+      <button class="btn-stop" onclick="stopGame()">⏹ გაჩერება</button>
+      <button class="btn-reset" onclick="resetGame()" style="padding:11px 12px">↺</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>იუზერის გადატანა</h2>
+    <div class="form-row">
+      <label>იუზერი (username)</label>
+      <input type="text" id="tr-user" placeholder="user123"/>
+    </div>
+    <div class="form-row">
+      <label>ახალი რეგიონი</label>
+      <select id="tr-region" style="width:100%;background:var(--bg3);border:1px solid var(--border);
+        border-radius:var(--rs);color:var(--text);font-size:14px;padding:10px 12px;
+        outline:none;font-family:inherit"></select>
+    </div>
+    <button class="btn-sim" onclick="transferUser()" style="width:100%">↗ გადატანა</button>
+    <div id="tr-msg" style="font-size:11px;color:var(--green);min-height:16px;margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <h2>ლაიქ ლიდერბორდი</h2>
+    <div id="mini-lb"></div>
+  </div>
+
+  <div class="card">
+    <h2>⚡ ლაივ ფიდი</h2>
+    <div id="feed" style="max-height:180px;overflow-y:auto">
+      <p style="font-size:12px;color:var(--muted)">ჯერ არარის...</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ TAB: REGIONS ══ -->
+<div id="tab-regions" class="tab-panel">
+  <div class="card">
+    <h2>შენახული თამაშები</h2>
+    <div class="form-row" style="margin-bottom:8px">
+      <label>თამაშის სახელი</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="preset-name" placeholder="მაგ: რეგიონების თამაში" style="flex:1;min-width:0"/>
+        <button class="btn-connect" onclick="savePreset()" style="white-space:nowrap">💾 შენახვა</button>
+      </div>
+    </div>
+    <div id="preset-list"></div>
+  </div>
+  <div class="card">
+    <h2>რეგიონების სია</h2>
+    <div id="region-list"></div>
+    <button class="btn-add" onclick="addRegion()">+ ახალი რეგიონი</button>
+  </div>
+  <div class="card">
+    <h2>გამომწვევი სიტყვები</h2>
+    <div class="note" style="margin-bottom:10px">
+      კომენტარში <strong>ეს სიტყვა</strong> → ავტომატურად <strong>ის რეგიონი</strong><br/>
+      მაგ: "იმერ" → "იმერეთი"
+    </div>
+    <div id="alias-list"></div>
+    <button class="btn-add" onclick="addAlias()" style="margin-top:6px">+ ახალი სიტყვა</button>
+    <button class="btn-start" onclick="saveAliases()" style="margin-top:8px;font-size:14px;padding:11px">💾 შენახვა</button>
+  </div>
+</div>
+
+<!-- ══ TAB: SIMULATION ══ -->
+<div id="tab-sim" class="tab-panel">
+  <div class="card">
+    <h2>სიმულაცია</h2>
+    <div class="form-row"><label>იუზერი</label><input type="text" id="s-u" placeholder="user123"/></div>
+    <div class="form-row"><label>ქოინები</label><input type="number" id="s-c" value="100" min="1"/></div>
+    <div class="form-row">
+      <label>კომენტარი</label>
+      <input type="text" id="s-k" placeholder="კახეთი  ან  RSH: იმერეთი"/>
+    </div>
+    <div class="btn-row">
+      <button class="btn-sim" onclick="sim()">↗ გაგზავნა</button>
+      <button class="btn-demo" id="btn-demo" onclick="toggleDemo()">🤖 ავტო</button>
+    </div>
+    <div id="sim-msg"></div>
+    <div class="note" style="margin-top:10px">
+      <strong>RSH: პრეფიქსი</strong> — რეგიონის შესაცვლელად:<br/>
+      <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;
+        font-family:monospace;color:var(--green)">RSH: კახეთი</code>
+    </div>
+  </div>
+</div>
+
+<script>
+const BC=['#4f8ef7','#34d399','#fb923c','#a78bfa','#f5c542','#60a5fa','#f87171','#2dd4bf'];
+const DU=['გიო','ნათია','დავითი','სალომე','ნიკა','მარი','ლუკა','ანა','გოჩა','თამო'];
+let gs={};
+let demoInt=null,demoOn=false;
+let adminRegions=['იმერეთი','კახეთი','აჭარა','გურია','სვანეთი','სამეგრელო','ქართლი','ჰერეთი','რაჭა'];
+
+// ── Tabs ──────────────────────────────────────────────────
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    const names=['tiktok','game','regions','sim'];
+    t.classList.toggle('active',names[i]===name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p=>{
+    p.classList.toggle('active',p.id==='tab-'+name);
+  });
+}
+
+// ── Presets ───────────────────────────────────────────────
+function getPresets(){try{return JSON.parse(localStorage.getItem('rb_presets')||'[]');}catch{return[];}}
+function setPresets(p){localStorage.setItem('rb_presets',JSON.stringify(p));}
+
+function savePreset(){
+  const name=(document.getElementById('preset-name')?.value||'').trim();
+  if(!name){showMsg('⚠ სახელი შეიყვანე');return;}
+  const presets=getPresets();
+  const idx=presets.findIndex(p=>p.name===name);
+  const entry={name,regions:[...adminRegions],aliases:adminAliases.map(a=>({...a}))};
+  if(idx>=0)presets[idx]=entry; else presets.push(entry);
+  setPresets(presets);
+  renderPresets();
+  showMsg('✓ შენახულია: '+name);
+}
+function loadPreset(name){
+  const p=getPresets().find(p=>p.name===name);
+  if(!p)return;
+  adminRegions=[...p.regions];
+  adminAliases=p.aliases?p.aliases.map(a=>({...a})):[];
+  renderRegionList();renderAliasList();populateTransferRegions();
+  showMsg('✓ ჩატვირთულია: '+name);
+  switchTab('regions');
+}
+function deletePreset(name){
+  if(!confirm('წაშლა: '+name+'?'))return;
+  setPresets(getPresets().filter(p=>p.name!==name));
+  renderPresets();
+}
+function renderPresets(){
+  const list=getPresets();
+  const el=document.getElementById('preset-list');
+  if(!el)return;
+  if(list.length===0){
+    el.innerHTML='<p style="font-size:11px;color:var(--muted);padding:4px 0">შენახული თამაში არ არის</p>';
+    return;
+  }
+  el.innerHTML=list.map(p=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700">${p.name}</div>
+        <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.regions.join(', ')}</div>
+      </div>
+      <button class="btn-connect" style="font-size:12px;padding:7px 10px"
+        onclick="loadPreset(${JSON.stringify(p.name)})">↙ ჩატვირთვა</button>
+      <button class="btn-del" onclick="deletePreset(${JSON.stringify(p.name)})">×</button>
+    </div>`).join('');
+}
+
+// ── Aliases ───────────────────────────────────────────────
+let adminAliases=[];// [{word,region}]
+function renderAliasList(){
+  document.getElementById('alias-list').innerHTML=
+    adminAliases.map((a,i)=>`
+      <div class="ri">
+        <input type="text" value="${(a.word||'').replace(/"/g,'&quot;')}"
+               placeholder="სიტყვა" style="flex:1"
+               oninput="adminAliases[${i}].word=this.value"/>
+        <span style="color:var(--muted);padding:0 4px;flex-shrink:0">→</span>
+        <select style="flex:1;background:var(--bg3);border:1px solid var(--border);
+          border-radius:var(--rs);color:var(--text);font-size:13px;padding:8px 6px;
+          outline:none;font-family:inherit"
+          onchange="adminAliases[${i}].region=this.value">
+          ${adminRegions.map(r=>`<option value="${r}" ${r===a.region?'selected':''}>${r}</option>`).join('')}
+        </select>
+        <button class="btn-del" onclick="removeAlias(${i})">×</button>
+      </div>`).join('');
+}
+function addAlias(){
+  adminAliases.push({word:'',region:adminRegions[0]||''});
+  renderAliasList();
+}
+function removeAlias(i){adminAliases.splice(i,1);renderAliasList();}
+async function saveAliases(){
+  const obj={};
+  adminAliases.forEach(a=>{if(a.word&&a.region)obj[a.word]=a.region;});
+  await api('/api/aliases',{aliases:obj});
+  showMsg('✓ შენახულია');
+}
+
+// ── Transfer ──────────────────────────────────────────────
+function populateTransferRegions(){
+  const sel=document.getElementById('tr-region');
+  if(!sel)return;
+  sel.innerHTML=adminRegions.map(r=>`<option value="${r}">${r}</option>`).join('');
+}
+async function transferUser(){
+  const username=(document.getElementById('tr-user')?.value||'').replace('@','').trim();
+  const toRegion=document.getElementById('tr-region')?.value||'';
+  const msg=document.getElementById('tr-msg');
+  if(!username){if(msg){msg.textContent='⚠ იუზერი შეიყვანე';msg.style.color='var(--orange)';}return;}
+  const r=await api('/api/transfer',{username,toRegion});
+  if(r?.ok){
+    if(msg){msg.textContent=`✓ @${username}: ${r.fromRegion||'?'} → ${toRegion} (${r.coins||0} ქ.)`;msg.style.color='var(--green)';}
+  } else {
+    if(msg){msg.textContent='⚠ '+(r?.error||'შეცდომა');msg.style.color='var(--orange)';}
+  }
+  setTimeout(()=>{if(msg)msg.textContent='';},3000);
+}
+
+// ── Regions list ──────────────────────────────────────────
+function renderRegionList(){
+  document.getElementById('region-list').innerHTML=
+    adminRegions.map((r,i)=>`
+      <div class="ri">
+        <input type="text" value="${r.replace(/"/g,'&quot;')}"
+               oninput="adminRegions[${i}]=this.value"/>
+        <button class="btn-del" onclick="removeRegion(${i})">×</button>
+      </div>`).join('');
+}
+function addRegion(){adminRegions.push('ახალი');renderRegionList();}
+function removeRegion(i){if(adminRegions.length>2)adminRegions.splice(i,1);renderRegionList();}
+
+// ── Socket ────────────────────────────────────────────────
+const socket=io();
+socket.on('gameUpdate',s=>{gs=s;syncAdmin(s);});
+socket.on('tiktokStatus',info=>{
+  const dot  =document.getElementById('tt-dot');
+  const txt  =document.getElementById('tt-status-txt');
+  const box  =document.getElementById('tt-status-box');
+  const btnC =document.getElementById('btn-connect');
+  const btnD =document.getElementById('btn-disconnect');
+  const errEl=document.getElementById('tt-error');
+  if(!dot||!txt)return;
+
+  if(info.connecting){
+    dot.style.background ='#f5c542';
+    box.style.background ='rgba(245,197,66,.08)';
+    box.style.borderColor='rgba(245,197,66,.25)';
+    txt.style.color='#f5c542';
+    txt.textContent='ვუკავშირდებით @'+info.username+'...';
+    btnC.disabled=true;btnC.textContent='⏳...';
+    btnD.style.display='none';errEl.style.display='none';
+    return;
+  }
+  if(info.connected){
+    dot.style.background ='var(--green)';
+    box.style.background ='rgba(52,211,153,.08)';
+    box.style.borderColor='rgba(52,211,153,.25)';
+    txt.style.color='var(--green)';
+    txt.textContent='✓ დაკავშირებულია @'+info.username;
+    btnC.disabled=false;btnC.textContent='🔗 კავშირი';
+    btnD.style.display='block';errEl.style.display='none';
+    const uf=document.getElementById('tt-user');
+    if(uf&&!uf.value)uf.value=info.username;
+  } else {
+    dot.style.background =info.error?'var(--red)':'var(--muted)';
+    box.style.background =info.error?'rgba(248,113,113,.06)':'rgba(107,107,133,.1)';
+    box.style.borderColor=info.error?'rgba(248,113,113,.2)':'var(--border)';
+    txt.style.color=info.error?'var(--red)':'var(--muted)';
+    txt.textContent=info.error?'✗ კავშირი ვერ მოხერხდა':'გათიშულია';
+    btnC.disabled=false;btnC.textContent='🔗 კავშირი';
+    btnD.style.display='none';
+    if(info.error){
+      errEl.style.display='block';
+      errEl.innerHTML='<strong>შეცდომა:</strong> '+info.error+'<br/><span style="color:var(--muted)">'+getTips(info.error)+'</span>';
+    } else errEl.style.display='none';
+  }
+});
+
+function getTips(e){
+  if(!e)return'';const s=e.toLowerCase();
+  if(s.includes('sessionid')||s.includes('session'))return'sessionId ხელახლა დააკოპირე';
+  if(s.includes('not live')||s.includes('offline'))return'ექაუნთი LIVE-ზე არ არის';
+  if(s.includes('not found')||s.includes('404'))return'username შეამოწმე';
+  if(s.includes('rate')||s.includes('429'))return'30 წამი დაელოდე';
+  if(s.includes('403'))return'Signing Key ან Session ID არასწორია';
+  return'შეამოწმე: ექაუნთი LIVE-ზეა? სახელი სწორია?';
+}
+
+// ── Sync ──────────────────────────────────────────────────
+function syncAdmin(s){
+  const chipMap={idle:'c-idle',active:'c-active',paused:'c-paused',done:'c-done'};
+  const lblMap ={idle:'idle',active:'მიმდინარეობს',paused:'პაუზა',done:'დასრულდა'};
+  const chip=document.getElementById('status-chip');
+  chip.className='chip '+(chipMap[s.status]||'c-idle');
+  chip.textContent=lblMap[s.status]||s.status;
+
+  document.getElementById('time-left').textContent=
+    (s.status==='active'||s.status==='paused')?fmt(s.timeLeft):'—';
+  document.getElementById('mvp-val').textContent=
+    s.mvp?('@'+s.mvp.user+' — '+s.mvp.coins.toLocaleString()+' ქ.'):'—';
+  document.getElementById('player-count').textContent=
+    Object.keys(s.userRegions||{}).length+'';
+
+  const bp=document.getElementById('btn-pause');
+  if(bp)bp.textContent=s.status==='paused'?'▶ გაგრძელება':'⏸ პაუზა';
+
+  const sorted=sortR(s);
+  const maxC=Math.max(...sorted.map(r=>r.c),1);
+  document.getElementById('mini-lb').innerHTML=sorted.map((r,i)=>`
+    <div class="mlb-row">
+      <span class="mlb-rank">${i+1}.</span>
+      <span class="mlb-name">${r.n}</span>
+      <div class="mlb-wrap">
+        <div class="mlb-bar" style="width:${Math.round(r.c/maxC*100)}%;background:${BC[i%BC.length]}"></div>
+      </div>
+      <span class="mlb-pts">${r.c.toLocaleString()}</span>
+    </div>`).join('');
+
+  const fl=document.getElementById('feed');
+  if(!s.donations||s.donations.length===0){
+    fl.innerHTML='<p style="font-size:12px;color:var(--muted)">ჯერ არარის...</p>';
+  } else {
+    fl.innerHTML=s.donations.slice(0,10).map(d=>`
+      <div class="fi">
+        <span class="fi-u">@${d.username}</span>
+        <span class="fi-c">+${d.coins.toLocaleString()}</span>
+        <span style="color:var(--muted)">→</span>
+        <span class="fi-r">${d.region}</span>
+      </div>`).join('');
+  }
+}
+
+// ── TikTok ────────────────────────────────────────────────
+async function connectTikTok(){
+  const raw       =(document.getElementById('tt-user')?.value||'').replace('@','').trim();
+  const sessionId =(document.getElementById('tt-session')?.value||'').trim();
+  const signingKey=(document.getElementById('tt-signing')?.value||'').trim();
+  const txt=document.getElementById('tt-status-txt');
+  const errEl=document.getElementById('tt-error');
+  if(!raw){txt.textContent='შეიყვანე @username';txt.style.color='var(--orange)';return;}
+  lsSave();
+  const result=await api('/api/connect',{tiktokUsername:raw,sessionId,signingKey});
+  if(result&&!result.ok){
+    const box=document.getElementById('tt-status-box');
+    const dot=document.getElementById('tt-dot');
+    if(dot)dot.style.background='var(--red)';
+    if(box){box.style.background='rgba(248,113,113,.06)';box.style.borderColor='rgba(248,113,113,.2)';}
+    txt.style.color='var(--red)';
+    txt.textContent='✗ '+result.error;
+    if(errEl){errEl.style.display='block';errEl.textContent=result.error;}
+  }
+}
+async function disconnectTikTok(){await api('/api/disconnect',{});}
+
+// ── Game controls ─────────────────────────────────────────
+async function startGame(){
+  const username=(document.getElementById('tt-user')?.value||'').replace('@','').trim();
+  const duration=parseInt(document.getElementById('duration')?.value)||120;
+  await api('/api/start',{regions:adminRegions,duration,tiktokUsername:username});
+  switchTab('game');
+}
+async function pauseGame(){await api('/api/pause',{});}
+async function stopGame(){
+  if(demoOn)toggleDemo();
+  await api('/api/stop',{});
+}
+async function resetGame(){
+  if(demoOn)toggleDemo();
+  await api('/api/reset',{});
+}
+
+// ── Simulation ────────────────────────────────────────────
+async function sim(){
+  const u=(document.getElementById('s-u')?.value||'').trim();
+  const c=parseInt(document.getElementById('s-c')?.value)||0;
+  const k=(document.getElementById('s-k')?.value||'').trim();
+  if(!u||c<=0){showMsg('⚠ იუზერი და ქოინები სავალდებულოა');return;}
+  await api('/api/simulate',{username:u,coins:c,comment:k});
+  showMsg('✓ @'+u+' → '+c+' ქ.'+(k?' ('+k+')':''));
+}
+
+function toggleDemo(){
+  demoOn=!demoOn;
+  document.getElementById('btn-demo').textContent=demoOn?'⛔ ავტო:ON':'🤖 ავტო';
+  if(demoOn){
+    demoInt=setInterval(async()=>{
+      if(gs.status!=='active')return;
+      const regs=gs.regions||adminRegions;
+      const u=DU[Math.floor(Math.random()*DU.length)]+(Math.floor(Math.random()*999));
+      const c=[5,10,50,100,200,500][Math.floor(Math.random()*6)];
+      const r=regs[Math.floor(Math.random()*regs.length)];
+      await api('/api/simulate',{username:u,coins:c,comment:r});
+    },900);
+  } else {
+    if(demoInt){clearInterval(demoInt);demoInt=null;}
+  }
+}
+
+function showMsg(m){
+  const el=document.getElementById('sim-msg');
+  el.textContent=m;el.style.color=m.startsWith('⚠')?'var(--orange)':'var(--green)';
+  setTimeout(()=>el.textContent='',2500);
+}
+
+// ── Utils ─────────────────────────────────────────────────
+async function api(url,body){
+  try{
+    const r=await fetch(url,{method:'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    return r.json();
+  }catch(e){console.error(e);}
+}
+function sortR(s){return(s.regions||[]).map(n=>({n,c:(s.regionScores?.[n]||0)})).sort((a,b)=>b.c-a.c);}
+function fmt(s){return`${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;}
+
+// ── LocalStorage helpers ───────────────────────────────────
+const LS_KEYS={user:'rb_tt_user',signing:'rb_tt_signing',session:'rb_tt_session'};
+function lsSave(){
+  const u=document.getElementById('tt-user')?.value||'';
+  const k=document.getElementById('tt-signing')?.value||'';
+  const s=document.getElementById('tt-session')?.value||'';
+  if(u)localStorage.setItem(LS_KEYS.user,u);
+  if(k)localStorage.setItem(LS_KEYS.signing,k);
+  if(s)localStorage.setItem(LS_KEYS.session,s);
+}
+function lsLoad(){
+  const u=localStorage.getItem(LS_KEYS.user);
+  const k=localStorage.getItem(LS_KEYS.signing);
+  const s=localStorage.getItem(LS_KEYS.session);
+  if(u)document.getElementById('tt-user').value=u;
+  if(k)document.getElementById('tt-signing').value=k;
+  if(s)document.getElementById('tt-session').value=s;
+}
+
+// ── Init ──────────────────────────────────────────────────
+renderRegionList();
+renderAliasList();
+renderPresets();
+document.getElementById('dur-p').textContent=fmt(120);
+lsLoad();
+
+fetch('/api/state').then(r=>r.json()).then(s=>{
+  gs=s;
+  if(s.regions&&s.regions.length)adminRegions=s.regions;
+  if(s.tiktokUsername)document.getElementById('tt-user').value=s.tiktokUsername;
+  document.getElementById('duration').value=s.duration||120;
+  document.getElementById('dur-p').textContent=fmt(s.duration||120);
+  if(s.aliases&&typeof s.aliases==='object'){
+    adminAliases=Object.entries(s.aliases).map(([word,region])=>({word,region}));
+  }
+  renderRegionList();
+  renderAliasList();
+  populateTransferRegions();
+  syncAdmin(s);
+});
+</script>
+</body>
+</html>

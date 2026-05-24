@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cd \"c:\\\\Users\\\\gbr\\\\Downloads\\\\region\"; $job = Start-Job -ScriptBlock { cd \"c:\\\\Users\\\\gbr\\\\Downloads\\\\region\"; node server.js 2>&1 }; Start-Sleep -Seconds 3; Receive-Job $job; $job)",
+      "PowerShell(Get-Process -Name \"node\" -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force)",
+      "PowerShell(Start-Process -FilePath \"node\" -ArgumentList \"server.js\" -WorkingDirectory \"c:\\\\Users\\\\gbr\\\\Downloads\\\\region\" -WindowStyle Normal)",
+      "PowerShell(\"Server restarted\")",
+      "PowerShell($body = '{\"tiktokUsername\":\"g.a.z.a.n_official\",\"signingKey\":\"euler_MTJhNTk0NzhlOGZjYjk4YTRjZDc1MWE2MjFmZTI1ZmIzZGI\"}'; try { $r = Invoke-RestMethod -Uri \"http://localhost:3000/api/connect\" -Method POST -Body $body -ContentType \"application/json\"; $r } catch { $_.Exception.Message })",
+      "PowerShell($body = '{\"tiktokUsername\":\"g.a.z.a.n_official\",\"signingKey\":\"euler_MTJhNTk0NzhlOGZjYjk4YTRjZDc1MWE2MjFmZTI1ZmIzZGI\"}'; $r = Invoke-WebRequest -Uri \"http://localhost:3000/api/connect\" -Method POST -Body $body -ContentType \"application/json\" -UseBasicParsing; $r.StatusCode; $r.Content)",
+      "PowerShell(Get-Process -Name \"node\" -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Seconds 1; Start-Process -FilePath \"node\" -ArgumentList \"server.js\" -WorkingDirectory \"c:\\\\Users\\\\gbr\\\\Downloads\\\\region\" -WindowStyle Normal; Start-Sleep -Seconds 2; $r=Invoke-WebRequest -Uri \"http://localhost:3000/api/state\" -UseBasicParsing; \\($r.Content | ConvertFrom-Json\\).aliases)",
+      "PowerShell($r=Invoke-WebRequest -Uri \"http://localhost:3000/api/state\" -UseBasicParsing; $s=$r.Content|ConvertFrom-Json; \"Status: $\\($s.status\\)\"; \"Aliases type: $\\($s.aliases.GetType\\(\\).Name\\)\")",
+      "PowerShell(try { $r=Invoke-WebRequest -Uri \"http://localhost:3000/\" -UseBasicParsing; \"Server OK: $\\($r.StatusCode\\)\" } catch { \"Server down - restarting...\"; Get-Process -Name \"node\" -EA SilentlyContinue | Stop-Process -Force; Start-Sleep 1; Start-Process \"node\" \"server.js\" -WorkingDirectory \"c:\\\\Users\\\\gbr\\\\Downloads\\\\region\"; Start-Sleep 2; \"Done\" })",
+      "PowerShell(Get-Process -Name \"node\" -EA SilentlyContinue | Stop-Process -Force; Start-Sleep 1; Start-Process \"node\" \"server.js\" -WorkingDirectory \"c:\\\\Users\\\\gbr\\\\Downloads\\\\region\"; Start-Sleep 2; $r=Invoke-WebRequest \"http://localhost:3000/api/connect\" -Method POST -Body '{\"tiktokUsername\":\"unknown_user\",\"signingKey\":\"test\"}' -ContentType \"application/json\" -UseBasicParsing; \"$\\($r.StatusCode\\): $\\($r.Content\\)\")"
+    ]
+  }
+}

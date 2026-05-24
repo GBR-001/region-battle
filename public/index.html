@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>Region Battle</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0b10;--bg2:#13131c;--bg3:#1a1a26;
+  --border:rgba(255,255,255,0.07);
+  --text:#eeeef5;--muted:#6b6b85;
+  --accent:#4f8ef7;--purple:#a78bfa;--gold:#f5c542;
+  --green:#34d399;--red:#f87171;--orange:#fb923c;
+}
+html{
+  font-family:'Segoe UI',system-ui,sans-serif;
+  background:var(--bg);color:var(--text);
+  min-height:100dvh;overflow-x:hidden;
+}
+body{
+  display:flex;flex-direction:column;
+  padding:10px;gap:10px;
+  max-width:430px;margin:0 auto;
+  min-height:100dvh;
+}
+
+/* ── MVP ── */
+#mvp{
+  background:linear-gradient(135deg,rgba(79,142,247,.12),rgba(167,139,250,.12));
+  border:1px solid rgba(167,139,250,.25);
+  border-radius:14px;padding:12px 16px;text-align:center;
+  flex-shrink:0;
+}
+.mvp-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--purple);margin-bottom:4px}
+.mvp-name{font-size:clamp(18px,5vw,26px);font-weight:800;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mvp-sub{font-size:12px;color:var(--muted);margin-top:2px}
+
+/* ── Card ── */
+.card{background:var(--bg2);border:1px solid var(--border);
+  border-radius:14px;padding:14px;flex-shrink:0}
+
+/* ── Timer + status row ── */
+.top-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.card-title{font-size:11px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted)}
+#timer{font-size:clamp(28px,8vw,44px);font-weight:800;line-height:1;
+  transition:color .3s;text-align:right}
+#timer-lbl{font-size:10px;color:var(--muted);text-align:right;margin-top:2px}
+
+/* ── Chips ── */
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;padding:4px 9px;border-radius:20px}
+.chip::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.c-active{background:rgba(52,211,153,.12);color:var(--green)}
+.c-paused{background:rgba(245,197,66,.12);color:var(--gold)}
+.c-idle  {background:rgba(107,107,133,.12);color:var(--muted)}
+.c-done  {background:rgba(248,113,113,.12);color:var(--red)}
+
+/* ── Leaderboard bars ── */
+.lb-row{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.lb-rank{font-size:12px;font-weight:700;min-width:18px;color:var(--muted)}
+.lb-name{font-size:clamp(13px,3.5vw,15px);font-weight:700;
+  min-width:clamp(70px,22vw,110px);color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-wrap{flex:1;height:clamp(20px,5vw,26px);background:var(--bg3);
+  border-radius:5px;overflow:hidden}
+.lb-bar{height:100%;border-radius:5px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+.lb-pts{font-size:clamp(13px,3.5vw,15px);min-width:clamp(40px,11vw,60px);
+  text-align:right;color:var(--text);font-weight:800}
+
+/* ── Bottom section – single column on phones ── */
+.bottom{display:grid;grid-template-columns:1fr;gap:10px}
+@media(min-width:520px){.bottom{grid-template-columns:1fr 1fr}}
+
+/* ── How to play ── */
+#howto h2{font-size:10px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--accent);margin-bottom:10px}
+.step{display:flex;gap:7px;margin-bottom:9px;align-items:flex-start}
+.step-num{min-width:20px;height:20px;border-radius:50%;
+  background:rgba(79,142,247,.2);color:var(--accent);
+  font-size:10px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-body{font-size:clamp(10px,2.8vw,12px);line-height:1.5;color:var(--text)}
+.step-body strong{color:var(--gold)}
+.step-body code{background:var(--bg3);border:1px solid var(--border);
+  border-radius:3px;padding:1px 5px;font-size:10px;color:var(--green);
+  font-family:monospace;display:inline-block;margin-top:3px}
+
+/* ── Live feed ── */
+#feed-wrap h2{font-size:10px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+#feed{max-height:200px;overflow-y:auto}
+.fi{display:flex;align-items:center;gap:5px;
+  font-size:clamp(10px,2.8vw,12px);
+  padding:4px 0;border-bottom:1px solid var(--border);
+  animation:fin .3s ease}
+@keyframes fin{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.fi-u{font-weight:700;color:var(--text);
+  max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fi-c{color:var(--gold);font-weight:700}
+.fi-r{color:var(--accent)}
+
+/* ── Results overlay ── */
+#res-overlay{
+  display:none;position:fixed;
+  top:0;bottom:0;
+  left:50%;transform:translateX(-50%);
+  width:100%;max-width:430px;
+  background:rgba(11,11,16,.97);z-index:100;
+  flex-direction:column;align-items:center;justify-content:flex-start;
+  padding:20px 14px;gap:14px;overflow-y:auto;
+}
+#res-overlay.show{display:flex}
+.res-title{font-size:clamp(20px,6vw,28px);font-weight:800;text-align:center}
+.res-phase-lbl{font-size:12px;color:var(--muted)}
+.prog-wrap{width:min(280px,80vw);height:4px;background:var(--bg3);border-radius:2px;overflow:hidden}
+.prog-bar{height:100%;background:var(--accent);border-radius:2px;transition:width 1s linear}
+
+.podium{display:flex;align-items:flex-end;gap:6px;
+  height:clamp(130px,35vw,180px);width:100%}
+.pod-col{display:flex;flex-direction:column;align-items:center;gap:3px;
+  flex:1}
+.pod-bar{width:100%;border-radius:5px 5px 0 0}
+.pod-rank{width:26px;height:26px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:800;color:#fff}
+.pod-name{font-size:clamp(10px,2.8vw,13px);font-weight:700;
+  text-align:center;color:var(--text);
+  width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pod-pts{font-size:10px;color:var(--muted)}
+
+.res-list{width:100%;max-width:420px}
+.res-row{display:flex;align-items:center;gap:8px;padding:8px 0;
+  border-bottom:1px solid var(--border)}
+.res-i{font-size:12px;min-width:22px;color:var(--muted);font-weight:700}
+.res-n{font-size:clamp(13px,3.5vw,15px);font-weight:700;flex:1}
+.res-s{font-size:clamp(14px,4vw,17px);font-weight:900}
+.mvp-tag{font-size:10px;background:rgba(245,197,66,.15);color:var(--gold);
+  padding:2px 7px;border-radius:20px;font-weight:700;white-space:nowrap}
+
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px}
+</style>
+</head>
+<body>
+
+<div id="mvp">
+  <div class="mvp-lbl">🏆 MVP</div>
+  <div class="mvp-name" id="mvp-name">—</div>
+  <div class="mvp-sub"  id="mvp-coins">ჯერ არარის</div>
+</div>
+
+<div class="card">
+  <div class="top-row">
+    <div>
+      <div class="card-title">რეგიონები</div>
+      <div id="status-chip" class="chip c-idle" style="margin-top:5px">idle</div>
+    </div>
+    <div style="flex:1;text-align:center;padding:0 6px;line-height:1.3">
+      <div style="font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Created By</div>
+      <div style="font-size:12px;font-weight:800;color:var(--accent);letter-spacing:.03em">Enovo_agency</div>
+    </div>
+    <div>
+      <div id="timer" style="color:var(--text)">—</div>
+      <div id="timer-lbl">—</div>
+    </div>
+  </div>
+  <div id="leaderboard"></div>
+</div>
+
+<div class="bottom">
+  <div class="card" id="howto">
+    <h2>⬇ როგორ</h2>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <strong>შეარჩიე</strong> — კომენტარში დაწერე:<br/>
+        <code>იმერეთი</code>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <strong>გააგზავნე საჩუქარი</strong> — ქოინი ავტომატურად ემატება.
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <strong>შეცვლა:</strong><br/>
+        <code>RSH: კახეთი</code>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="feed-wrap">
+    <h2>⚡ ლაივი</h2>
+    <div id="feed"><p style="font-size:11px;color:var(--muted)">ჯერ არარის...</p></div>
+  </div>
+</div>
+
+<!-- Results -->
+<div id="res-overlay">
+  <div class="res-title" id="res-title">—</div>
+  <div class="res-phase-lbl" id="res-sub">—</div>
+  <div class="prog-wrap"><div class="prog-bar" id="res-prog" style="width:100%"></div></div>
+  <div class="podium" id="podium" style="display:none"></div>
+  <div class="res-list" id="res-list"></div>
+</div>
+
+<script>
+const BC=['#4f8ef7','#34d399','#fb923c','#a78bfa','#f5c542','#60a5fa','#f87171','#2dd4bf'];
+let gs={};
+let resInt=null,resLeft=30,resPhase='regions';
+
+const socket=io();
+socket.on('gameUpdate',s=>{gs=s;syncUI(s);});
+
+function syncUI(s){
+  const chipMap={idle:'c-idle',active:'c-active',paused:'c-paused',done:'c-done'};
+  const lblMap ={idle:'idle',active:'მიმდინარეობს',paused:'პაუზა',done:'დასრულდა'};
+  const chip=document.getElementById('status-chip');
+  chip.className='chip '+(chipMap[s.status]||'c-idle');
+  chip.textContent=lblMap[s.status]||s.status;
+
+  const td=document.getElementById('timer');
+  const tl=document.getElementById('timer-lbl');
+  if(s.status==='active'||s.status==='paused'){
+    td.textContent=fmt(s.timeLeft);
+    td.style.color=s.timeLeft<=10?'var(--red)':s.timeLeft<=30?'var(--gold)':'var(--text)';
+    tl.textContent=s.status==='paused'?'პაუზა':'დარჩა';
+  } else { td.textContent='—';tl.textContent='—'; }
+
+  if(s.mvp){
+    document.getElementById('mvp-name').textContent='@'+s.mvp.user;
+    document.getElementById('mvp-coins').textContent=s.mvp.coins.toLocaleString()+' ქოინი';
+  } else {
+    document.getElementById('mvp-name').textContent='—';
+    document.getElementById('mvp-coins').textContent='ჯერ არარის';
+  }
+
+  const sorted=sortR(s);
+  const maxC=Math.max(...sorted.map(r=>r.c),1);
+  document.getElementById('leaderboard').innerHTML=sorted.map((r,i)=>`
+    <div class="lb-row">
+      <span class="lb-rank">${i+1}.</span>
+      <span class="lb-name">${r.n}</span>
+      <div class="lb-wrap">
+        <div class="lb-bar" style="width:${Math.round(r.c/maxC*100)}%;background:${BC[i%BC.length]}"></div>
+      </div>
+      <span class="lb-pts">${r.c.toLocaleString()}</span>
+    </div>`).join('');
+
+  const fl=document.getElementById('feed');
+  if(!s.donations||s.donations.length===0){
+    fl.innerHTML='<p style="font-size:11px;color:var(--muted)">ჯერ არარის...</p>';
+  } else {
+    fl.innerHTML=s.donations.slice(0,8).map(d=>`
+      <div class="fi">
+        <span class="fi-u">@${d.username}</span>
+        <span class="fi-c">+${d.coins}</span>
+        <span style="color:var(--muted);font-size:10px">→</span>
+        <span class="fi-r">${d.region}</span>
+      </div>`).join('');
+  }
+
+  if(s.status==='done'){
+    const ov=document.getElementById('res-overlay');
+    if(!ov.classList.contains('show')){ov.classList.add('show');startResults(s);}
+  } else {
+    document.getElementById('res-overlay').classList.remove('show');
+    if(resInt){clearInterval(resInt);resInt=null;}
+  }
+}
+
+function startResults(s){
+  resPhase='regions';resLeft=30;
+  showPhase(s,'regions');
+  resInt=setInterval(()=>{
+    resLeft--;
+    document.getElementById('res-prog').style.width=Math.round(resLeft/30*100)+'%';
+    const sub=document.getElementById('res-sub');
+    if(sub)sub.textContent=resLeft+'წმ '+(resPhase==='regions'?'→ იუზერები':'→ დასასრული');
+    if(resLeft<=0){
+      if(resPhase==='regions'){resPhase='users';resLeft=30;showPhase(s,'users');}
+      else{clearInterval(resInt);resInt=null;document.getElementById('res-overlay').classList.remove('show');}
+    }
+  },1000);
+}
+
+function showPhase(s,phase){
+  document.getElementById('res-prog').style.width='100%';
+  if(phase==='regions'){
+    document.getElementById('res-title').textContent='🏁 დასრულდა!';
+    document.getElementById('res-sub').textContent='30წმ → იუზერები';
+    renderPodium(s);
+    document.getElementById('podium').style.display='flex';
+    document.getElementById('res-list').innerHTML=sortR(s).map((r,i)=>`
+      <div class="res-row">
+        <span class="res-i">${i+1}.</span>
+        <span class="res-n">${r.n}</span>
+        <span class="res-s" style="color:${BC[i%BC.length]}">${r.c.toLocaleString()} ქ.</span>
+      </div>`).join('');
+  } else {
+    document.getElementById('res-title').textContent='👤 ტოპი';
+    document.getElementById('res-sub').textContent='30წმ → დასასრული';
+    document.getElementById('podium').style.display='none';
+    const su=sortU(s);
+    document.getElementById('res-list').innerHTML=su.length===0
+      ?'<p style="color:var(--muted);font-size:13px">მონაწილეები არ ყოფილა</p>'
+      :su.map((u,i)=>`
+        <div class="res-row">
+          <span class="res-i">${i+1}.</span>
+          <span class="res-n">@${u.u}${i===0?' <span class="mvp-tag">MVP</span>':''}</span>
+          <span class="res-s" style="color:${BC[i%BC.length]}">${u.c.toLocaleString()} ქ.</span>
+        </div>`).join('');
+  }
+}
+
+function renderPodium(s){
+  const top3=sortR(s).slice(0,3);
+  const ord=top3.length>=3?[top3[1],top3[0],top3[2]]:
+            top3.length===2?[top3[1],top3[0],null]:[null,top3[0]||null,null];
+  const hs=[clamp(80,25,110),clamp(110,33,150),clamp(55,17,80)];
+  const cs=['#9ca3af','#f5c542','#fb923c'];
+  const rk=[2,1,3];
+  document.getElementById('podium').innerHTML=ord.map((r,i)=>r?`
+    <div class="pod-col">
+      <div class="pod-rank" style="background:${cs[i]}">${rk[i]}</div>
+      <div class="pod-name">${r.n}</div>
+      <div class="pod-pts">${r.c.toLocaleString()}</div>
+      <div class="pod-bar" style="height:${hs[i]}px;background:${cs[i]};opacity:.85"></div>
+    </div>`:'<div class="pod-col"></div>').join('');
+}
+
+function clamp(a,pct,b){
+  const v=Math.round(window.innerWidth*pct/100);
+  return Math.min(b,Math.max(a,v));
+}
+
+function sortR(s){return(s.regions||[]).map(n=>({n,c:(s.regionScores?.[n]||0)})).sort((a,b)=>b.c-a.c);}
+function sortU(s){return Object.entries(s.userScores||{}).map(([u,c])=>({u,c})).sort((a,b)=>b.c-a.c);}
+function fmt(s){return`${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;}
+
+fetch('/api/state').then(r=>r.json()).then(s=>{gs=s;syncUI(s);});
+</script>
+</body>
+</html>
