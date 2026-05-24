@@ -205,6 +205,12 @@ button:active{transform:scale(.97)}
              style="font-family:monospace;font-size:11px"/>
     </div>
 
+    <div class="form-row">
+      <label>tt-target-idc <span style="font-size:10px;color:var(--muted)">(Session ID-სთვის საჭირო)</span></label>
+      <input type="text" id="tt-idc" placeholder="F12 → Cookies → tt-target-idc  (მაგ: useast5)"
+             style="font-family:monospace;font-size:11px"/>
+    </div>
+
     <div id="tt-status-box">
       <span id="tt-dot" style="width:10px;height:10px;border-radius:50%;
             background:var(--muted);flex-shrink:0;transition:background .3s"></span>
@@ -564,6 +570,8 @@ socket.on('tiktokStatus',info=>{
 
 function getTips(e){
   if(!e)return'';const s=e.toLowerCase();
+  if(s.includes('unexpected server response')||s.includes('response: 200')||s.includes('websocket'))
+    return'❗ ექაუნთი ახლა LIVE-ზე არ არის — პირველ TikTok-ზე გაიდე LIVE, შემდეგ დააჭირე კავშირი';
   if(s.includes('sessionid')||s.includes('session'))return'sessionId ხელახლა დააკოპირე';
   if(s.includes('not live')||s.includes('offline'))return'ექაუნთი LIVE-ზე არ არის';
   if(s.includes('not found')||s.includes('404'))return'username შეამოწმე';
@@ -684,11 +692,12 @@ async function connectTikTok(){
   const raw       =(document.getElementById('tt-user')?.value||'').replace('@','').trim();
   const sessionId =(document.getElementById('tt-session')?.value||'').trim();
   const signingKey=(document.getElementById('tt-signing')?.value||'').trim();
+  const ttIdc     =(document.getElementById('tt-idc')?.value||'').trim();
   const txt=document.getElementById('tt-status-txt');
   const errEl=document.getElementById('tt-error');
   if(!raw){txt.textContent='შეიყვანე @username';txt.style.color='var(--orange)';return;}
   lsSave();
-  const result=await api('/api/connect',{tiktokUsername:raw,sessionId,signingKey});
+  const result=await api('/api/connect',{tiktokUsername:raw,sessionId,signingKey,ttIdc});
   if(result&&!result.ok){
     const box=document.getElementById('tt-status-box');
     const dot=document.getElementById('tt-dot');
@@ -793,22 +802,26 @@ function sortR(s){return(s.regions||[]).map(n=>({n,c:(s.regionScores?.[n]||0)}))
 function fmt(s){return`${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;}
 
 // ── LocalStorage helpers ───────────────────────────────────
-const LS_KEYS={user:'rb_tt_user',signing:'rb_tt_signing',session:'rb_tt_session'};
+const LS_KEYS={user:'rb_tt_user',signing:'rb_tt_signing',session:'rb_tt_session',idc:'rb_tt_idc'};
 function lsSave(){
   const u=document.getElementById('tt-user')?.value||'';
   const k=document.getElementById('tt-signing')?.value||'';
   const s=document.getElementById('tt-session')?.value||'';
+  const d=document.getElementById('tt-idc')?.value||'';
   if(u)localStorage.setItem(LS_KEYS.user,u);
   if(k)localStorage.setItem(LS_KEYS.signing,k);
   if(s)localStorage.setItem(LS_KEYS.session,s);
+  if(d)localStorage.setItem(LS_KEYS.idc,d);
 }
 function lsLoad(){
   const u=localStorage.getItem(LS_KEYS.user);
   const k=localStorage.getItem(LS_KEYS.signing);
   const s=localStorage.getItem(LS_KEYS.session);
+  const d=localStorage.getItem(LS_KEYS.idc);
   if(u)document.getElementById('tt-user').value=u;
   if(k)document.getElementById('tt-signing').value=k;
   if(s)document.getElementById('tt-session').value=s;
+  if(d)document.getElementById('tt-idc').value=d;
 }
 
 // ── Init ──────────────────────────────────────────────────

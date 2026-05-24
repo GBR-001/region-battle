@@ -202,22 +202,23 @@ function errMsg(err) {
 }
 
 // ─── TIKTOK CONNECTION ─────────────────────────────────────
-function connectTikTok(username, sessionId, signingKey) {
+function connectTikTok(username, sessionId, signingKey, ttIdc) {
   if (!username) return;
   if (tiktokConnection) { tiktokConnection.disconnect(); tiktokConnection = null; }
 
   io.emit('tiktokStatus', { connecting: true, username });
 
-  // v2.1.0: sessionId requires ttTargetIdc (account region cookie) — skip it for live reading
   const opts = {
     processInitialData      : false,
     enableExtendedGiftInfo  : true,
     requestPollingIntervalMs: 2000,
   };
 
-  if (signingKey) opts.signApiKey = signingKey;
+  if (signingKey)             opts.signApiKey    = signingKey;
+  if (sessionId && ttIdc)   { opts.sessionId     = sessionId; opts.ttTargetIdc = ttIdc; }
+  else if (sessionId && !ttIdc) console.warn('[TIKTOK] sessionId provided but tt-target-idc missing — skipping session auth');
 
-  console.log(`[TIKTOK] Connecting @${username}${sessionId ? ' +sessionId' : ''}${signingKey ? ' +signing' : ' (no signing — may not receive events)'}`);
+  console.log(`[TIKTOK] Connecting @${username}  signing=${!!signingKey}  session=${!!(sessionId&&ttIdc)}  idc=${ttIdc||'—'}`);
 
   tiktokConnection = new WebcastPushConnection(username, opts);
 
@@ -286,6 +287,7 @@ app.post('/api/connect', (req, res) => {
   const raw        = (req.body.tiktokUsername || '').replace('@', '').trim();
   const sessionId  = (req.body.sessionId  || '').trim();
   const signingKey = (req.body.signingKey || '').trim();
+  const ttIdc      = (req.body.ttIdc || '').trim();
   if (!raw) return res.status(400).json({ ok: false, error: 'username is required' });
   if (!isAllowed(raw)) {
     console.log(`[AUTH] Blocked: @${raw} not in users.json`);
@@ -295,9 +297,10 @@ app.post('/api/connect', (req, res) => {
   state.tiktokUsername = raw;
   if (sessionId)  state.sessionId  = sessionId;
   if (signingKey) state.signingKey = signingKey;
+  if (ttIdc)      state.ttIdc      = ttIdc;
 
   io.emit('tiktokStatus', { connecting: true, username: raw });
-  connectTikTok(raw, sessionId || state.sessionId, signingKey || state.signingKey);
+  connectTikTok(raw, sessionId || state.sessionId, signingKey || state.signingKey, ttIdc || state.ttIdc);
   res.json({ ok: true, username: raw });
 });
 
@@ -347,7 +350,7 @@ app.post('/api/start', (req, res) => {
     broadcast();
   }, 1000);
 
-  connectTikTok(state.tiktokUsername, state.sessionId, state.signingKey);
+  connectTikTok(state.tiktokUsername, state.sessionId, state.signingKey, state.ttIdc);
   broadcast();
   res.json({ ok: true });
 });
