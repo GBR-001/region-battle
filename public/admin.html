@@ -267,33 +267,11 @@ button:active{transform:scale(.97)}
     </div>
   </div>
 
-  <div class="card">
-    <h2>იუზერის გადატანა</h2>
-    <div class="form-row">
-      <label>იუზერი (username)</label>
-      <input type="text" id="tr-user" placeholder="user123"/>
-    </div>
-    <div class="form-row">
-      <label>ახალი რეგიონი</label>
-      <select id="tr-region" style="width:100%;background:var(--bg3);border:1px solid var(--border);
-        border-radius:var(--rs);color:var(--text);font-size:14px;padding:10px 12px;
-        outline:none;font-family:inherit"></select>
-    </div>
-    <button class="btn-sim" onclick="transferUser()" style="width:100%">↗ გადატანა</button>
-    <div id="tr-msg" style="font-size:11px;color:var(--green);min-height:16px;margin-top:6px"></div>
-  </div>
-
-  <div class="card">
-    <h2>ლაიქ ლიდერბორდი</h2>
-    <div id="mini-lb"></div>
-  </div>
-
-  <div class="card">
-    <h2>⚡ ლაივ ფიდი</h2>
-    <div id="feed" style="max-height:180px;overflow-y:auto">
-      <p style="font-size:12px;color:var(--muted)">ჯერ არარის...</p>
-    </div>
-  </div>
+  <div id="mini-lb" style="display:none;height:0;overflow:hidden"></div>
+  <div id="feed" style="display:none;height:0;overflow:hidden"></div>
+  <select id="tr-region" style="display:none"></select>
+  <div id="tr-msg" style="display:none"></div>
+  <input type="text" id="tr-user" style="display:none"/>
 
 </div>
 
