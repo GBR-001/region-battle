@@ -54,6 +54,7 @@ const state = {
   mvp                 : null,     // { user, coins }
   tiktokConnected     : false,
   multiplier          : { active: false, value: 1, timeLeft: 0 },
+  regionMultipliers   : {},   // { 'region': { value, timeLeft } } — per-region (threshold-triggered)
   periodicMultipliers : [],   // [{ atSecond, value, duration }]
   thresholdMultipliers: [],   // [{ coins, value, duration }]
 };
@@ -68,7 +69,8 @@ function initScores() {
   state.userRegions  = {};
   state.donations    = [];
   state.mvp          = null;
-  state.multiplier   = { active: false, value: 1, timeLeft: 0 };
+  state.multiplier        = { active: false, value: 1, timeLeft: 0 };
+  state.regionMultipliers = {};
   state.regions.forEach(r => (state.regionScores[r] = 0));
   Object.keys(pendingGifts).forEach(k => delete pendingGifts[k]);
 }
@@ -84,7 +86,12 @@ function broadcast() { io.emit('gameUpdate', publicState()); }
 
 function activateMultiplier(value, duration) {
   state.multiplier = { active: true, value, timeLeft: duration };
-  console.log(`[MULT] x${value} for ${duration}s`);
+  console.log(`[MULT-GLOBAL] x${value} for ${duration}s`);
+}
+
+function activateRegionMultiplier(region, value, duration) {
+  state.regionMultipliers[region] = { value, timeLeft: duration };
+  console.log(`[MULT-REGION] ${region} x${value} for ${duration}s`);
 }
 
 // ─── PENDING GIFTS BUFFER ──────────────────────────────────
@@ -104,7 +111,9 @@ function flushPending(username, region) {
 }
 
 function applyGift(username, coins, region, silent = false, multOverride = null) {
-  const mult = multOverride !== null ? multOverride : (state.multiplier.active ? state.multiplier.value : 1);
+  const globalMult = state.multiplier.active ? state.multiplier.value : 1;
+  const regionMult = state.regionMultipliers[region] ? state.regionMultipliers[region].value : 1;
+  const mult = multOverride !== null ? multOverride : Math.max(globalMult, regionMult);
   const effective = coins * mult;
   state.regionScores[region] = (state.regionScores[region] || 0) + effective;
   state.userScores[username] = (state.userScores[username] || 0) + effective;
@@ -134,14 +143,15 @@ function findRegion(text) {
  * If the user already has a region → apply immediately.
  * If not → buffer the gift for up to PENDING_TTL ms.
  */
-// perUnit = single gift item value (diamondCount), used for threshold check
-// so 10x Rose (1 diamond each) doesn't trigger a "100 coin" threshold
-function checkThreshold(perUnit) {
+// Threshold triggers a PER-REGION multiplier — only the sender's region gets boosted
+function checkThreshold(perUnit, region) {
+  if (!region) return;
   const matches = (state.thresholdMultipliers || []).filter(tm => perUnit >= tm.coins);
   if (matches.length === 0) return;
   const best = matches.sort((a, b) => b.value - a.value)[0];
-  if (!state.multiplier.active || best.value >= state.multiplier.value)
-    activateMultiplier(best.value, best.duration);
+  const existing = state.regionMultipliers[region];
+  if (!existing || best.value >= existing.value)
+    activateRegionMultiplier(region, best.value, best.duration);
 }
 
 function onGift(username, coins, perUnit = coins) {
@@ -149,14 +159,15 @@ function onGift(username, coins, perUnit = coins) {
 
   const region = state.userRegions[username];
   if (region) {
+    // Apply first, then activate multiplier for NEXT gifts
     applyGift(username, coins, region);
-    checkThreshold(perUnit);
+    checkThreshold(perUnit, region);
     return;
   }
+  // No region yet — buffer; store global mult at gift time
   const multAtGiftTime = state.multiplier.active ? state.multiplier.value : 1;
   if (!pendingGifts[username]) pendingGifts[username] = [];
   pendingGifts[username].push({ coins, ts: Date.now(), mult: multAtGiftTime });
-  checkThreshold(perUnit);
   console.log(`[GIFT] ${username} (${coins}) – buffered, waiting for region comment`);
 }
 
@@ -340,14 +351,21 @@ app.post('/api/start', (req, res) => {
     if (state.status !== 'active') return;
     state.timeLeft--;
 
-    // Tick active multiplier countdown
+    // Tick global multiplier countdown
     if (state.multiplier.active) {
       state.multiplier.timeLeft--;
       if (state.multiplier.timeLeft <= 0)
         state.multiplier = { active: false, value: 1, timeLeft: 0 };
     }
 
-    // Fire periodic multipliers at the configured second
+    // Tick per-region multipliers
+    Object.keys(state.regionMultipliers).forEach(r => {
+      state.regionMultipliers[r].timeLeft--;
+      if (state.regionMultipliers[r].timeLeft <= 0)
+        delete state.regionMultipliers[r];
+    });
+
+    // Fire periodic multipliers at the configured second (global)
     (state.periodicMultipliers || []).forEach(pm => {
       if (state.timeLeft === pm.atSecond)
         activateMultiplier(pm.value, pm.duration);
@@ -355,8 +373,9 @@ app.post('/api/start', (req, res) => {
 
     if (state.timeLeft <= 0) {
       clearInterval(timerInterval);
-      state.status   = 'done';
-      state.multiplier = { active: false, value: 1, timeLeft: 0 };
+      state.status          = 'done';
+      state.multiplier      = { active: false, value: 1, timeLeft: 0 };
+      state.regionMultipliers = {};
       disconnectTikTok();
     }
     broadcast();

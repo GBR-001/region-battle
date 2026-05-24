@@ -607,10 +607,13 @@ function syncAdmin(s){
 
   const ms=document.getElementById('mult-status');
   if(ms){
-    if(s.multiplier&&s.multiplier.active){
-      ms.textContent=`X${s.multiplier.value} — ${s.multiplier.timeLeft}წმ`;
-      ms.style.color='var(--gold)';
-    } else {ms.textContent='—';ms.style.color='var(--muted)';}
+    const parts=[];
+    if(s.multiplier&&s.multiplier.active) parts.push(`გლობ. X${s.multiplier.value}(${s.multiplier.timeLeft}წმ)`);
+    if(s.regionMultipliers){
+      Object.entries(s.regionMultipliers).forEach(([r,m])=>parts.push(`${r} X${m.value}(${m.timeLeft}წმ)`));
+    }
+    ms.textContent=parts.length?parts.join(' | '):'—';
+    ms.style.color=parts.length?'var(--gold)':'var(--muted)';
   }
 
   const sorted=sortR(s);

@@ -255,15 +255,17 @@ function syncUI(s){
 
   const sorted=sortR(s);
   const maxC=Math.max(...sorted.map(r=>r.c),1);
-  document.getElementById('leaderboard').innerHTML=sorted.map((r,i)=>`
-    <div class="lb-row">
+  document.getElementById('leaderboard').innerHTML=sorted.map((r,i)=>{
+    const rm=s.regionMultipliers?.[r.n];
+    const badge=rm?`<span style="font-size:9px;font-weight:800;color:var(--gold);margin-left:4px;vertical-align:middle">⚡x${rm.value}(${rm.timeLeft})</span>`:'';
+    return`<div class="lb-row">
       <span class="lb-rank">${i+1}.</span>
-      <span class="lb-name">${r.n}</span>
+      <span class="lb-name">${r.n}${badge}</span>
       <div class="lb-wrap">
-        <div class="lb-bar" style="width:${Math.round(r.c/maxC*100)}%;background:${BC[i%BC.length]}"></div>
+        <div class="lb-bar" style="width:${Math.round(r.c/maxC*100)}%;background:${BC[i%BC.length]}${rm?';box-shadow:0 0 8px '+BC[i%BC.length]:''}}"></div>
       </div>
       <span class="lb-pts">${r.c.toLocaleString()}</span>
-    </div>`).join('');
+    </div>`;}).join('');
 
   const fl=document.getElementById('feed');
   if(!s.donations||s.donations.length===0){
