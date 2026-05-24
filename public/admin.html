@@ -267,6 +267,11 @@ button:active{transform:scale(.97)}
     </div>
   </div>
 
+  <div class="card">
+    <h2>მონაწილეები</h2>
+    <div id="players-list"><p style="font-size:12px;color:var(--muted)">ჯერ არარის...</p></div>
+  </div>
+
   <div id="mini-lb" style="display:none;height:0;overflow:hidden"></div>
   <div id="feed" style="display:none;height:0;overflow:hidden"></div>
   <select id="tr-region" style="display:none"></select>
@@ -308,6 +313,21 @@ button:active{transform:scale(.97)}
 <!-- ══ TAB: SIMULATION ══ -->
 <div id="tab-sim" class="tab-panel">
   <div class="card">
+    <h2>რეგიონის შეცვლის ბრძანება</h2>
+    <div class="form-row">
+      <label>პრეფიქსი (ახლა: <span id="cur-prefix" style="color:var(--green)">RSH:</span>)</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="prefix-input" placeholder="RSH:" style="flex:1;font-family:monospace"/>
+        <button class="btn-connect" onclick="savePrefix()" style="white-space:nowrap">💾 შენახვა</button>
+      </div>
+    </div>
+    <div class="note">
+      მაყურებელი კომენტარში წერს: <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;font-family:monospace;color:var(--green)" id="prefix-example">RSH: კახეთი</code>
+    </div>
+    <div id="prefix-msg" style="font-size:11px;color:var(--green);min-height:16px;margin-top:6px"></div>
+  </div>
+
+  <div class="card">
     <h2>სიმულაცია</h2>
     <div class="form-row"><label>იუზერი</label><input type="text" id="s-u" placeholder="user123"/></div>
     <div class="form-row"><label>ქოინები</label><input type="number" id="s-c" value="100" min="1"/></div>
@@ -320,11 +340,6 @@ button:active{transform:scale(.97)}
       <button class="btn-demo" id="btn-demo" onclick="toggleDemo()">🤖 ავტო</button>
     </div>
     <div id="sim-msg"></div>
-    <div class="note" style="margin-top:10px">
-      <strong>RSH: პრეფიქსი</strong> — რეგიონის შესაცვლელად:<br/>
-      <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;
-        font-family:monospace;color:var(--green)">RSH: კახეთი</code>
-    </div>
   </div>
 </div>
 
@@ -533,6 +548,13 @@ function syncAdmin(s){
 
   const bp=document.getElementById('btn-pause');
   if(bp)bp.textContent=s.status==='paused'?'▶ გაგრძელება':'⏸ პაუზა';
+  renderPlayers(s);
+  if(s.rshPrefix){
+    const cp=document.getElementById('cur-prefix');
+    const pe=document.getElementById('prefix-example');
+    if(cp)cp.textContent=s.rshPrefix;
+    if(pe)pe.textContent=s.rshPrefix+' კახეთი';
+  }
 
   const sorted=sortR(s);
   const maxC=Math.max(...sorted.map(r=>r.c),1);
@@ -630,6 +652,36 @@ function showMsg(m){
   const el=document.getElementById('sim-msg');
   el.textContent=m;el.style.color=m.startsWith('⚠')?'var(--orange)':'var(--green)';
   setTimeout(()=>el.textContent='',2500);
+}
+
+// ── Prefix ────────────────────────────────────────────────
+async function savePrefix(){
+  const p=(document.getElementById('prefix-input')?.value||'').trim();
+  if(!p){showMsg('⚠ პრეფიქსი შეიყვანე');return;}
+  await api('/api/set-prefix',{prefix:p});
+  document.getElementById('cur-prefix').textContent=p;
+  document.getElementById('prefix-example').textContent=p+' კახეთი';
+  const msg=document.getElementById('prefix-msg');
+  if(msg){msg.textContent='✓ შენახულია: '+p;setTimeout(()=>msg.textContent='',2500);}
+}
+
+// ── Players list ──────────────────────────────────────────
+function renderPlayers(s){
+  const el=document.getElementById('players-list');
+  if(!el)return;
+  const users=Object.entries(s.userScores||{})
+    .sort((a,b)=>b[1]-a[1]);
+  if(users.length===0){
+    el.innerHTML='<p style="font-size:12px;color:var(--muted)">ჯერ არარის...</p>';
+    return;
+  }
+  el.innerHTML=users.map(([u,c],i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:12px;color:var(--muted);min-width:18px">${i+1}.</span>
+      <span style="font-size:13px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">@${u}</span>
+      <span style="font-size:12px;color:var(--accent);min-width:40px;text-align:right">${(s.userRegions||{})[u]||'—'}</span>
+      <span style="font-size:13px;font-weight:800;color:var(--gold);min-width:50px;text-align:right">${c.toLocaleString()} ქ.</span>
+    </div>`).join('');
 }
 
 // ── Utils ─────────────────────────────────────────────────

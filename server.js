@@ -47,6 +47,7 @@ const state = {
   userRegions    : {},       // { 'user123': 'იმერეთი', ... }
   donations      : [],       // last 20 for live feed
   aliases        : {},       // { 'იმერ': 'იმერეთი', ... }
+  rshPrefix      : 'RSH:',  // customizable region-change command
   duration       : 120,
   timeLeft       : 0,
   tiktokUsername : '',
@@ -142,7 +143,7 @@ function onGift(username, coins) {
 function onComment(username, comment) {
   if (state.status !== 'active') return;
 
-  const RSH    = 'RSH:';
+  const RSH    = (state.rshPrefix || 'RSH:').toUpperCase();
   const hasRSH = comment.toUpperCase().includes(RSH);
 
   if (hasRSH) {
@@ -374,6 +375,14 @@ app.post('/api/simulate', (req, res) => {
   if (comment) onComment(username, comment);
   onGift(username, parseInt(coins));
   res.json({ ok: true });
+});
+
+// POST /api/set-prefix { prefix }
+app.post('/api/set-prefix', (req, res) => {
+  const p = (req.body.prefix || '').trim();
+  if (!p) return res.status(400).json({ error: 'prefix required' });
+  state.rshPrefix = p;
+  res.json({ ok: true, prefix: p });
 });
 
 app.get('/api/state', (req, res) => res.json(publicState()));
