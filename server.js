@@ -99,11 +99,12 @@ function flushPending(username, region) {
   const total = list.reduce((s, g) => s + g.coins, 0);
   console.log(`[PENDING] ${username} → ${region}  flushing ${list.length} gifts (${total} coins)`);
   delete pendingGifts[username];
-  list.forEach(g => applyGift(username, g.coins, region, true));
+  // Use mult stored at time of gift — not the current (possibly boosted) multiplier
+  list.forEach(g => applyGift(username, g.coins, region, true, g.mult));
 }
 
-function applyGift(username, coins, region, silent = false) {
-  const mult = state.multiplier.active ? state.multiplier.value : 1;
+function applyGift(username, coins, region, silent = false, multOverride = null) {
+  const mult = multOverride !== null ? multOverride : (state.multiplier.active ? state.multiplier.value : 1);
   const effective = coins * mult;
   state.regionScores[region] = (state.regionScores[region] || 0) + effective;
   state.userScores[username] = (state.userScores[username] || 0) + effective;
@@ -133,25 +134,30 @@ function findRegion(text) {
  * If the user already has a region → apply immediately.
  * If not → buffer the gift for up to PENDING_TTL ms.
  */
+function checkThreshold(coins) {
+  const matches = (state.thresholdMultipliers || []).filter(tm => coins >= tm.coins);
+  if (matches.length === 0) return;
+  const best = matches.sort((a, b) => b.value - a.value)[0];
+  if (!state.multiplier.active || best.value >= state.multiplier.value)
+    activateMultiplier(best.value, best.duration);
+}
+
 function onGift(username, coins) {
   if (state.status !== 'active') return;
 
-  // Check threshold multipliers — activate the highest matching one
-  const matches = (state.thresholdMultipliers || []).filter(tm => coins >= tm.coins);
-  if (matches.length > 0) {
-    const best = matches.sort((a, b) => b.value - a.value)[0];
-    if (!state.multiplier.active || best.value >= state.multiplier.value)
-      activateMultiplier(best.value, best.duration);
-  }
-
   const region = state.userRegions[username];
   if (region) {
+    // 1. Apply gift at CURRENT multiplier (x1 if none active)
     applyGift(username, coins, region);
+    // 2. Only THEN activate threshold multiplier for NEXT gifts
+    checkThreshold(coins);
     return;
   }
-  // No region yet — buffer until they comment a region
+  // No region yet — store the multiplier AT TIME OF GIFT so flush uses it, not the boosted one
+  const multAtGiftTime = state.multiplier.active ? state.multiplier.value : 1;
   if (!pendingGifts[username]) pendingGifts[username] = [];
-  pendingGifts[username].push({ coins, ts: Date.now() });
+  pendingGifts[username].push({ coins, ts: Date.now(), mult: multAtGiftTime });
+  checkThreshold(coins);
   console.log(`[GIFT] ${username} (${coins}) – buffered, waiting for region comment`);
 }
 
